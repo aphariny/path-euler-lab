@@ -121,13 +121,58 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const NAV = [
+  { to: "/", label: "Overview" },
+  { to: "/simulation", label: "Simulation" },
+  { to: "/method", label: "Numerical Method" },
+  { to: "/analysis", label: "Results & Error Analysis" },
+] as const;
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
+          <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
+                ME
+              </span>
+              <div>
+                <p className="text-sm font-semibold leading-tight tracking-tight text-foreground">
+                  Robot Path Tracking &amp; Navigation
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Modified Euler Method · Numerical Methods Laboratory
+                </p>
+              </div>
+            </div>
+            <nav className="flex flex-wrap gap-1">
+              {NAV.map((n) => (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeOptions={{ exact: n.to === "/" }}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  activeProps={{ className: "bg-primary/10 text-primary" }}
+                >
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </header>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <main className="mx-auto max-w-[1400px] px-5 py-8">
+          <Outlet />
+        </main>
+        <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
+          University capstone project · All results computed client-side from the entered parameters.
+        </footer>
+      </div>
     </QueryClientProvider>
   );
 }
+
