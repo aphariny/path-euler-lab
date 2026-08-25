@@ -74,9 +74,9 @@ function AnalysisPage() {
   }, [params]);
 
   const exact = analyticalTrajectory(params);
-  const lastExact = exact[exact.length - 1];
-  const lastMe = me[me.length - 1];
-  const lastEu = eu[eu.length - 1];
+  const lastExact = exact[exact.length - 1]!;
+  const lastMe = me[me.length - 1]!;
+  const lastEu = eu[eu.length - 1]!;
 
   return (
     <div className="space-y-8">

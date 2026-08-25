@@ -166,7 +166,7 @@ export function computeErrors(numeric: StateRow[], p: SimParams): ErrorStats {
   });
 
   const maxError = rows.reduce((m, r) => Math.max(m, r.errPos), 0);
-  const finalError = rows.length ? rows[rows.length - 1].errPos : 0;
+  const finalError = rows.length ? rows[rows.length - 1]!.errPos : 0;
   const avgError = rows.length ? rows.reduce((s, r) => s + r.errPos, 0) / rows.length : 0;
 
   return { rows, maxError, finalError, avgError };

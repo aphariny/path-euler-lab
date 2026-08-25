@@ -59,7 +59,7 @@ function SimulationPage() {
 
   const rows = useMemo(() => solveModifiedEuler(active), [active]);
   const exact = useMemo(() => analyticalTrajectory(active), [active]);
-  const last = rows[rows.length - 1];
+  const last = rows[rows.length - 1]!;
 
   const parsed = (): SimParams =>
     Object.fromEntries(

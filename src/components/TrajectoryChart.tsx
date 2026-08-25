@@ -47,8 +47,8 @@ export function TrajectoryChart({ numeric, exact, showExact = false, target = nu
       data,
       domainX: [cx - half, cx + half] as [number, number],
       domainY: [cy - half, cy + half] as [number, number],
-      first: numeric[0],
-      last: numeric[numeric.length - 1],
+      first: numeric[0]!,
+      last: numeric[numeric.length - 1]!,
     };
   }, [numeric, exact, target, zoom]);
 
