@@ -43,6 +43,9 @@ const STEP_SIZES = [0.5, 0.2, 0.1, 0.05];
 
 function AnalysisPage() {
   const params = useSimParams();
+  const nav = useMemo(() => solveModifiedEulerNavigation(params), [params]);
+
+
 
   const { me, eu, meErr, euErr, chartData, stepTable } = useMemo(() => {
     const me = solveModifiedEuler(params);
