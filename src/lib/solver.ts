@@ -17,9 +17,13 @@ export interface SimParams {
   y0: number;
   theta0: number;
   v: number;
+  /** Constant angular velocity — used only by the constant-ω validation/reference case. */
   omega: number;
   h: number;
   tTotal: number;
+  targetX: number;
+  targetY: number;
+  tolerance: number;
 }
 
 export interface StateRow {
@@ -181,12 +185,13 @@ export function validateParams(p: SimParams): ValidationResult {
   const errors: Partial<Record<keyof SimParams, string>> = {};
   const finite = (n: number) => Number.isFinite(n);
 
-  (["x0", "y0", "theta0", "v", "omega", "h", "tTotal"] as (keyof SimParams)[]).forEach((k) => {
+  (["x0", "y0", "theta0", "v", "omega", "h", "tTotal", "targetX", "targetY", "tolerance"] as (keyof SimParams)[]).forEach((k) => {
     if (!finite(p[k])) errors[k] = "Must be a valid number.";
   });
 
   if (finite(p.h) && p.h <= 0) errors.h = "Step size h must be greater than 0.";
   if (finite(p.tTotal) && p.tTotal <= 0) errors.tTotal = "Total time must be greater than 0.";
+  if (finite(p.tolerance) && p.tolerance <= 0) errors.tolerance = "Tolerance must be greater than 0.";
   if (finite(p.h) && finite(p.tTotal) && p.h > 0 && p.tTotal > 0) {
     if (p.h > p.tTotal) errors.h = "Step size cannot exceed the total simulation time.";
     else if (p.tTotal / p.h > 20000) errors.h = "Too many steps (max 20000). Increase h.";
@@ -198,11 +203,116 @@ export function validateParams(p: SimParams): ValidationResult {
 }
 
 export const DEFAULT_PARAMS: SimParams = {
-  x0: 0,
-  y0: 0,
+  x0: 0.5,
+  y0: -1.5,
   theta0: 0,
   v: 1,
   omega: 0.2,
   h: 0.1,
   tTotal: 20,
+  targetX: 5,
+  targetY: 5,
+  tolerance: 0.25,
 };
+
+/* ------------------------------------------------------------------ */
+/*  Target-based navigation (proportional heading control)             */
+/* ------------------------------------------------------------------ */
+
+/** Proportional steering gain. */
+export const KP = 2.0;
+/** Maximum admissible turning rate (rad/s). */
+export const OMEGA_MAX = 2.0;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Heading error to the target, normalised to [-π, π]. */
+export function getHeadingError(x: number, y: number, theta: number, targetX: number, targetY: number) {
+  const thetaTarget = Math.atan2(targetY - y, targetX - x);
+  const e = thetaTarget - theta;
+  return Math.atan2(Math.sin(e), Math.cos(e));
+}
+
+/** ω = clamp(Kp · headingError, −ω_max, +ω_max) */
+export function calculateOmega(headingError: number) {
+  return clamp(KP * headingError, -OMEGA_MAX, OMEGA_MAX);
+}
+
+export interface NavRow extends StateRow {
+  omega: number;
+  headingError: number;
+  distance: number;
+}
+
+export interface NavResult {
+  rows: NavRow[];
+  targetReached: boolean;
+  reachedAtTime: number | null;
+  finalDistance: number;
+  minDistance: number;
+}
+
+/**
+ * Modified Euler (midpoint) integration with a dynamically computed ω from the
+ * heading error toward the target. Stops as soon as the tolerance is met.
+ */
+export function solveModifiedEulerNavigation(p: SimParams): NavResult {
+  const { x0, y0, theta0, v, h, tTotal, targetX, targetY, tolerance } = p;
+  const steps = Math.max(1, Math.round(tTotal / h));
+
+  let x = x0;
+  let y = y0;
+  let theta = theta0;
+
+  const dist = () => Math.hypot(targetX - x, targetY - y);
+
+  const rows: NavRow[] = [
+    {
+      step: 0,
+      t: 0,
+      x,
+      y,
+      theta,
+      omega: calculateOmega(getHeadingError(x, y, theta, targetX, targetY)),
+      headingError: getHeadingError(x, y, theta, targetX, targetY),
+      distance: dist(),
+    },
+  ];
+
+  let targetReached = dist() <= tolerance;
+  let reachedAtTime: number | null = targetReached ? 0 : null;
+
+  for (let n = 1; n <= steps && !targetReached; n++) {
+    const headingError = getHeadingError(x, y, theta, targetX, targetY);
+    const omega = calculateOmega(headingError);
+
+    // midpoint state
+    const thetaMid = theta + (h / 2) * omega;
+
+    x = x + h * v * Math.cos(thetaMid);
+    y = y + h * v * Math.sin(thetaMid);
+    theta = theta + h * omega;
+
+    const distance = dist();
+    rows.push({
+      step: n,
+      t: n * h,
+      x,
+      y,
+      theta,
+      omega,
+      headingError,
+      distance,
+    });
+
+    if (distance <= tolerance) {
+      targetReached = true;
+      reachedAtTime = n * h;
+    }
+  }
+
+  const finalDistance = rows[rows.length - 1]!.distance;
+  const minDistance = rows.reduce((m, r) => Math.min(m, r.distance), Infinity);
+
+  return { rows, targetReached, reachedAtTime, finalDistance, minDistance };
+}
