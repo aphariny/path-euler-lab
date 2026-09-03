@@ -122,9 +122,10 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 const NAV = [
-  { href: "#input", label: "Input" },
-  { href: "#simulation", label: "Simulation" },
-  { href: "#error-analysis", label: "Error Analysis" },
+  { to: "/", label: "Overview" },
+  { to: "/simulation", label: "Simulation" },
+  { to: "/method", label: "Numerical Method" },
+  { to: "/analysis", label: "Results & Error Analysis" },
 ] as const;
 
 function RootComponent() {
@@ -150,13 +151,15 @@ function RootComponent() {
             </div>
             <nav className="flex flex-wrap gap-1">
               {NAV.map((n) => (
-                <a
-                  key={n.href}
-                  href={n.href}
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  activeOptions={{ exact: n.to === "/" }}
                   className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  activeProps={{ className: "bg-primary/10 text-primary" }}
                 >
                   {n.label}
-                </a>
+                </Link>
               ))}
             </nav>
           </div>

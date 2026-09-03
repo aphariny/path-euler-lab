@@ -1,37 +1,25 @@
 /**
- * Feedback path-tracking simulation of a 2D differential-drive robot.
+ * Numerical solvers for the 2D robot kinematic model.
  *
- * Kinematic model:
  *   dx/dt     = v * cos(theta)
  *   dy/dt     = v * sin(theta)
  *   dtheta/dt = omega
  *
- * Numerical integration: MODIFIED EULER (Heun predictor-corrector)
- *   predictor: s* = s_n + h * f(t_n, s_n)
- *   corrector: s_(n+1) = s_n + (h/2) * [ f(t_n, s_n) + f(t_n + h, s*) ]
+ * The primary method is the MODIFIED EULER (midpoint) method:
  *
- * The control inputs v and omega are recomputed from the tracking error at
- * BOTH the current state and the predicted state (open-loop velocities are
- * never used directly to move the robot).
+ *   y_(n+1) = y_n + h * f( x_n + h/2 , y_n + (h/2) * f(x_n, y_n) )
+ *
+ * No predictor-corrector (Heun k1/k2) formulation is used anywhere.
  */
 
 export interface SimParams {
   x0: number;
   y0: number;
   theta0: number;
-  /** desired (reference) linear velocity */
-  vd: number;
-  /** desired (reference) angular velocity */
-  omegad: number;
+  v: number;
+  omega: number;
   h: number;
   tTotal: number;
-  /** desired circular path radius */
-  R: number;
-  /** desired path angular velocity */
-  omegap: number;
-  kx: number;
-  ky: number;
-  ktheta: number;
 }
 
 export interface StateRow {
@@ -40,160 +28,148 @@ export interface StateRow {
   x: number;
   y: number;
   theta: number;
-  /** desired path point at this instant */
-  xd: number;
-  yd: number;
-  thetad: number;
-  /** control inputs actually applied at this instant */
-  v: number;
-  omega: number;
-  /** heading error (normalized) */
-  etheta: number;
-  /** position tracking error */
-  e: number;
 }
 
-interface State {
-  x: number;
-  y: number;
-  theta: number;
-}
-
-/** Desired circular path point and heading at time t. */
-export function desiredPoint(p: SimParams, t: number) {
-  return {
-    xd: p.R * Math.cos(p.omegap * t),
-    yd: p.R * Math.sin(p.omegap * t),
-    thetad: p.omegap * t + Math.PI / 2,
-  };
-}
-
-/** Normalize an angle to [-pi, pi]. */
-export function normalizeAngle(a: number): number {
-  let x = a;
-  while (x > Math.PI) x -= 2 * Math.PI;
-  while (x < -Math.PI) x += 2 * Math.PI;
-  return x;
-}
+/** f_x(theta) = v cos(theta) */
+const fx = (v: number, theta: number) => v * Math.cos(theta);
+/** f_y(theta) = v sin(theta) */
+const fy = (v: number, theta: number) => v * Math.sin(theta);
+/** f_theta = omega (constant) */
+const fTheta = (omega: number) => omega;
 
 /**
- * Kanayama-style feedback controller.
- *   v     = vd cos(etheta) + kx * ex_robot
- *   omega = omegad + vd ( ky * ey_robot + ktheta * sin(etheta) )
+ * Modified Euler (midpoint form), applied independently to x, y and theta.
  */
-export function controller(p: SimParams, s: State, t: number) {
-  const { xd, yd, thetad } = desiredPoint(p, t);
+export function solveModifiedEuler(p: SimParams): StateRow[] {
+  const { x0, y0, theta0, v, omega, h, tTotal } = p;
+  const steps = Math.max(1, Math.round(tTotal / h));
 
-  const ex = xd - s.x;
-  const ey = yd - s.y;
-  const e = Math.sqrt(ex * ex + ey * ey);
+  let x = x0;
+  let y = y0;
+  let theta = theta0;
 
-  const exRobot = Math.cos(s.theta) * ex + Math.sin(s.theta) * ey;
-  const eyRobot = -Math.sin(s.theta) * ex + Math.cos(s.theta) * ey;
-  const etheta = normalizeAngle(thetad - s.theta);
+  const rows: StateRow[] = [{ step: 0, t: 0, x, y, theta }];
 
-  const v = p.vd * Math.cos(etheta) + p.kx * exRobot;
-  const omega = p.omegad + p.vd * (p.ky * eyRobot + p.ktheta * Math.sin(etheta));
+  for (let n = 1; n <= steps; n++) {
+    // --- slopes at the current point (x_n, y_n, theta_n) ---
+    const slopeX = fx(v, theta);
+    const slopeY = fy(v, theta);
+    const slopeTheta = fTheta(omega);
 
-  return { xd, yd, thetad, ex, ey, e, exRobot, eyRobot, etheta, v, omega };
-}
+    // --- midpoint state:  s_mid = s_n + (h/2) * f(t_n, s_n) ---
+    const thetaMid = theta + (h / 2) * slopeTheta;
+    // (x_mid / y_mid are computed for completeness; the slopes depend on theta)
+    const xMid = x + (h / 2) * slopeX;
+    const yMid = y + (h / 2) * slopeY;
+    void xMid;
+    void yMid;
 
-/** Robot kinematics f(state, control). */
-function f(s: State, v: number, omega: number) {
-  return { dx: v * Math.cos(s.theta), dy: v * Math.sin(s.theta), dtheta: omega };
-}
+    // --- slopes evaluated at the midpoint state ---
+    const midSlopeX = fx(v, thetaMid);
+    const midSlopeY = fy(v, thetaMid);
+    const midSlopeTheta = fTheta(omega);
 
-/**
- * MODIFIED EULER (predictor-corrector) path-tracking simulation loop.
- */
-export function simulateTracking(p: SimParams): StateRow[] {
-  const steps = Math.max(1, Math.round(p.tTotal / p.h));
-  const h = p.h;
+    // --- update with the midpoint slope ---
+    x = x + h * midSlopeX;
+    y = y + h * midSlopeY;
+    theta = theta + h * midSlopeTheta;
 
-  let s: State = { x: p.x0, y: p.y0, theta: p.theta0 };
-  const rows: StateRow[] = [];
-
-  for (let n = 0; n <= steps; n++) {
-    const t = n * h;
-
-    // 1-3. desired point, tracking error, controller outputs at current state
-    const c = controller(p, s, t);
-
-    // 7. store the state together with the tracking error
-    rows.push({
-      step: n,
-      t,
-      x: s.x,
-      y: s.y,
-      theta: s.theta,
-      xd: c.xd,
-      yd: c.yd,
-      thetad: c.thetad,
-      v: c.v,
-      omega: c.omega,
-      etheta: c.etheta,
-      e: c.e,
-    });
-
-    if (n === steps) break;
-
-    // 4. predictor step (explicit Euler)
-    const k1 = f(s, c.v, c.omega);
-    const pred: State = {
-      x: s.x + h * k1.dx,
-      y: s.y + h * k1.dy,
-      theta: s.theta + h * k1.dtheta,
-    };
-
-    // 5. recompute the controller at the predicted state / time
-    const cPred = controller(p, pred, t + h);
-    const k2 = f(pred, cPred.v, cPred.omega);
-
-    // 6. corrector step (modified Euler average of the two slopes)
-    s = {
-      x: s.x + (h / 2) * (k1.dx + k2.dx),
-      y: s.y + (h / 2) * (k1.dy + k2.dy),
-      theta: s.theta + (h / 2) * (k1.dtheta + k2.dtheta),
-    };
+    rows.push({ step: n, t: n * h, x, y, theta });
   }
 
   return rows;
 }
 
-export interface ErrorStats {
-  finalError: number;
-  maxError: number;
-  meanError: number;
-  rmse: number;
+/**
+ * Basic (forward) Euler — provided only for the accuracy comparison.
+ */
+export function solveEuler(p: SimParams): StateRow[] {
+  const { x0, y0, theta0, v, omega, h, tTotal } = p;
+  const steps = Math.max(1, Math.round(tTotal / h));
+
+  let x = x0;
+  let y = y0;
+  let theta = theta0;
+
+  const rows: StateRow[] = [{ step: 0, t: 0, x, y, theta }];
+
+  for (let n = 1; n <= steps; n++) {
+    const nx = x + h * fx(v, theta);
+    const ny = y + h * fy(v, theta);
+    const nt = theta + h * fTheta(omega);
+    x = nx;
+    y = ny;
+    theta = nt;
+    rows.push({ step: n, t: n * h, x, y, theta });
+  }
+
+  return rows;
 }
 
-export function computeErrorStats(rows: StateRow[]): ErrorStats {
-  if (rows.length === 0) return { finalError: 0, maxError: 0, meanError: 0, rmse: 0 };
-  let max = 0;
-  let sum = 0;
-  let sumSq = 0;
-  for (const r of rows) {
-    max = Math.max(max, r.e);
-    sum += r.e;
-    sumSq += r.e * r.e;
+/**
+ * Analytical (exact) solution for constant v and constant omega.
+ * Falls back to straight-line motion when omega -> 0.
+ */
+export function analyticalState(p: SimParams, t: number): { x: number; y: number; theta: number } {
+  const { x0, y0, theta0, v, omega } = p;
+  const theta = theta0 + omega * t;
+
+  if (Math.abs(omega) < 1e-12) {
+    return { x: x0 + v * Math.cos(theta0) * t, y: y0 + v * Math.sin(theta0) * t, theta };
   }
+
   return {
-    finalError: rows[rows.length - 1]!.e,
-    maxError: max,
-    meanError: sum / rows.length,
-    rmse: Math.sqrt(sumSq / rows.length),
+    x: x0 + (v / omega) * (Math.sin(theta0 + omega * t) - Math.sin(theta0)),
+    y: y0 - (v / omega) * (Math.cos(theta0 + omega * t) - Math.cos(theta0)),
+    theta,
   };
 }
 
-/** Desired path sampled densely for plotting. */
-export function desiredPath(p: SimParams, samples = 400) {
-  const pts: { x: number; y: number }[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const t = (i / samples) * p.tTotal;
-    const d = desiredPoint(p, t);
-    pts.push({ x: d.xd, y: d.yd });
+export function analyticalTrajectory(p: SimParams): StateRow[] {
+  const steps = Math.max(1, Math.round(p.tTotal / p.h));
+  const rows: StateRow[] = [];
+  for (let n = 0; n <= steps; n++) {
+    const t = n * p.h;
+    const s = analyticalState(p, t);
+    rows.push({ step: n, t, ...s });
   }
-  return pts;
+  return rows;
+}
+
+export interface ErrorRow {
+  step: number;
+  t: number;
+  errX: number;
+  errY: number;
+  errPos: number;
+}
+
+export interface ErrorStats {
+  rows: ErrorRow[];
+  maxError: number;
+  finalError: number;
+  avgError: number;
+}
+
+export function computeErrors(numeric: StateRow[], p: SimParams): ErrorStats {
+  const rows: ErrorRow[] = numeric.map((r) => {
+    const e = analyticalState(p, r.t);
+    const errX = Math.abs(r.x - e.x);
+    const errY = Math.abs(r.y - e.y);
+    return {
+      step: r.step,
+      t: r.t,
+      errX,
+      errY,
+      errPos: Math.sqrt((r.x - e.x) ** 2 + (r.y - e.y) ** 2),
+    };
+  });
+
+  const maxError = rows.reduce((m, r) => Math.max(m, r.errPos), 0);
+  const finalError = rows.length ? rows[rows.length - 1]!.errPos : 0;
+  const avgError = rows.length ? rows.reduce((s, r) => s + r.errPos, 0) / rows.length : 0;
+
+  return { rows, maxError, finalError, avgError };
 }
 
 export interface ValidationResult {
@@ -203,48 +179,30 @@ export interface ValidationResult {
 
 export function validateParams(p: SimParams): ValidationResult {
   const errors: Partial<Record<keyof SimParams, string>> = {};
-  const keys: (keyof SimParams)[] = [
-    "x0",
-    "y0",
-    "theta0",
-    "vd",
-    "omegad",
-    "h",
-    "tTotal",
-    "R",
-    "omegap",
-    "kx",
-    "ky",
-    "ktheta",
-  ];
-  keys.forEach((k) => {
-    if (!Number.isFinite(p[k])) errors[k] = "Must be a valid number.";
+  const finite = (n: number) => Number.isFinite(n);
+
+  (["x0", "y0", "theta0", "v", "omega", "h", "tTotal"] as (keyof SimParams)[]).forEach((k) => {
+    if (!finite(p[k])) errors[k] = "Must be a valid number.";
   });
 
-  if (Number.isFinite(p.h) && p.h <= 0) errors.h = "Step size h must be greater than 0.";
-  if (Number.isFinite(p.tTotal) && p.tTotal <= 0) errors.tTotal = "Total time must be greater than 0.";
-  if (Number.isFinite(p.h) && Number.isFinite(p.tTotal) && p.h > 0 && p.tTotal > 0) {
+  if (finite(p.h) && p.h <= 0) errors.h = "Step size h must be greater than 0.";
+  if (finite(p.tTotal) && p.tTotal <= 0) errors.tTotal = "Total time must be greater than 0.";
+  if (finite(p.h) && finite(p.tTotal) && p.h > 0 && p.tTotal > 0) {
     if (p.h > p.tTotal) errors.h = "Step size cannot exceed the total simulation time.";
     else if (p.tTotal / p.h > 20000) errors.h = "Too many steps (max 20000). Increase h.";
   }
-  if (Number.isFinite(p.R) && p.R <= 0) errors.R = "Radius must be greater than 0.";
-  if (Number.isFinite(p.vd) && Math.abs(p.vd) > 1000) errors.vd = "Velocity magnitude is unrealistically large.";
-  if (Number.isFinite(p.omegad) && Math.abs(p.omegad) > 100) errors.omegad = "Angular velocity is too large.";
+  if (finite(p.v) && Math.abs(p.v) > 1000) errors.v = "Velocity magnitude is unrealistically large.";
+  if (finite(p.omega) && Math.abs(p.omega) > 100) errors.omega = "Angular velocity is too large.";
 
   return { ok: Object.keys(errors).length === 0, errors };
 }
 
 export const DEFAULT_PARAMS: SimParams = {
-  x0: 0.5,
-  y0: -1.5,
+  x0: 0,
+  y0: 0,
   theta0: 0,
-  vd: 1,
-  omegad: 0.2,
-  h: 0.05,
-  tTotal: 40,
-  R: 5,
-  omegap: 0.2,
-  kx: 1,
-  ky: 1,
-  ktheta: 2,
+  v: 1,
+  omega: 0.2,
+  h: 0.1,
+  tTotal: 20,
 };
