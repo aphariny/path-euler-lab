@@ -3,8 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Play, RotateCcw } from "lucide-react";
 import {
   DEFAULT_PARAMS,
-  analyticalTrajectory,
-  solveModifiedEuler,
+  KP,
+  OMEGA_MAX,
+  solveModifiedEulerNavigation,
   validateParams,
   type SimParams,
 } from "@/lib/solver";
@@ -14,7 +15,6 @@ import { FormulaCard, MetricCard, Panel, SectionHeading, WhatIsHappening, fmt } 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/simulation")({
   head: () => ({
