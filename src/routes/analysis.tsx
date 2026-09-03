@@ -83,8 +83,27 @@ function AnalysisPage() {
       <SectionHeading
         eyebrow="Results"
         title="Error analysis and method comparison"
-        description={`All values below are recomputed from the current simulation parameters (v = ${params.v}, ω = ${params.omega}, h = ${params.h}, T = ${params.tTotal}).`}
+        description={`Numerical validation of the Modified Euler method for the CONSTANT-ω reference case (v = ${params.v}, ω = ${params.omega}, h = ${params.h}, T = ${params.tTotal}), where a closed-form analytical solution exists.`}
       />
+
+      <Panel title="Target navigation results" subtitle="Metrics for the dynamic-ω trajectory from the Simulation page">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Target" value={`(${params.targetX}, ${params.targetY}) m`} />
+          <MetricCard label="Final distance to target" value={`${nav.finalDistance.toFixed(4)} m`} hint={`tolerance = ${params.tolerance} m`} />
+          <MetricCard label="Minimum distance" value={`${nav.minDistance.toFixed(4)} m`} />
+          <MetricCard
+            label="Target reached"
+            value={nav.targetReached ? "Yes" : "No"}
+            hint={nav.reachedAtTime !== null ? `at t = ${nav.reachedAtTime.toFixed(2)} s` : "not within T"}
+          />
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          The navigation run uses a heading-dependent ω, so it has no closed-form analytical solution
+          and is evaluated with navigation metrics only. The sections below keep the classical
+          constant-ω validation of the numerical methods.
+        </p>
+      </Panel>
+
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <Panel title="Analytical reference solution" subtitle="Exact solution for constant v and constant ω">
