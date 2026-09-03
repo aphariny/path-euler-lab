@@ -17,9 +17,13 @@ export interface SimParams {
   y0: number;
   theta0: number;
   v: number;
+  /** Constant angular velocity — used only by the constant-ω validation/reference case. */
   omega: number;
   h: number;
   tTotal: number;
+  targetX: number;
+  targetY: number;
+  tolerance: number;
 }
 
 export interface StateRow {
