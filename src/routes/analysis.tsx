@@ -15,6 +15,7 @@ import {
   computeErrors,
   solveEuler,
   solveModifiedEuler,
+  solveModifiedEulerNavigation,
   type SimParams,
 } from "@/lib/solver";
 import { useSimParams } from "@/lib/sim-store";
