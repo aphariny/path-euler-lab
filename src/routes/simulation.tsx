@@ -40,9 +40,11 @@ const FIELDS: { key: keyof SimParams; label: string; unit: string; step: number 
   { key: "y0", label: "Initial Y position", unit: "m", step: 0.1 },
   { key: "theta0", label: "Initial angle θ", unit: "rad", step: 0.1 },
   { key: "v", label: "Linear velocity v", unit: "m/s", step: 0.1 },
-  { key: "omega", label: "Angular velocity ω", unit: "rad/s", step: 0.05 },
   { key: "h", label: "Step size h", unit: "s", step: 0.01 },
   { key: "tTotal", label: "Total simulation time", unit: "s", step: 1 },
+  { key: "targetX", label: "Target X", unit: "m", step: 0.1 },
+  { key: "targetY", label: "Target Y", unit: "m", step: 0.1 },
+  { key: "tolerance", label: "Target tolerance", unit: "m", step: 0.05 },
 ];
 
 function SimulationPage() {
@@ -55,11 +57,11 @@ function SimulationPage() {
   );
   const [errors, setErrors] = useState<Partial<Record<keyof SimParams, string>>>({});
   const [running, setRunning] = useState(false);
-  const [showExact, setShowExact] = useState(false);
 
-  const rows = useMemo(() => solveModifiedEuler(active), [active]);
-  const exact = useMemo(() => analyticalTrajectory(active), [active]);
+  const nav = useMemo(() => solveModifiedEulerNavigation(active), [active]);
+  const rows = nav.rows;
   const last = rows[rows.length - 1]!;
+
 
   const parsed = (): SimParams =>
     Object.fromEntries(
