@@ -136,41 +136,50 @@ function SimulationPage() {
           </Panel>
 
           <WhatIsHappening>
-            At each step the method estimates the slope at the midpoint of the interval and uses that
-            midpoint slope to obtain a more accurate next position.
+            At every step the robot measures the heading error toward the target, converts it into a
+            turning rate ω = Kp·error (clamped), and advances with the Modified Euler midpoint
+            update. Kp = {KP}, ω_max = {OMEGA_MAX} rad/s.
           </WhatIsHappening>
 
-          <Panel title="Update formula">
+          <Panel title="Navigation + update formula">
             <FormulaCard
               lines={[
-                "θ_mid = θₙ + (h/2)·ω",
+                "θ_target = atan2(y_t − yₙ, x_t − xₙ)",
+                "e = atan2(sin(θ_target − θₙ), cos(θ_target − θₙ))",
+                "ωₙ = clamp(Kp·e, −ω_max, ω_max)",
+                "θ_mid = θₙ + (h/2)·ωₙ",
                 "xₙ₊₁ = xₙ + h·v·cos(θ_mid)",
                 "yₙ₊₁ = yₙ + h·v·sin(θ_mid)",
-                "θₙ₊₁ = θₙ + h·ω",
+                "θₙ₊₁ = θₙ + h·ωₙ",
               ]}
             />
           </Panel>
         </div>
 
         <div className="space-y-6">
-          <Panel
-            title="Trajectory (X–Y plane)"
-            subtitle="Modified Euler numerical path"
-            action={
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                Analytical overlay
-                <Switch checked={showExact} onCheckedChange={setShowExact} />
-              </label>
-            }
-          >
-            <TrajectoryChart numeric={rows} exact={exact} showExact={showExact} />
+          <Panel title="Trajectory (X–Y plane)" subtitle="Target-based Modified Euler navigation">
+            <TrajectoryChart
+              numeric={rows}
+              target={{ x: active.targetX, y: active.targetY }}
+            />
           </Panel>
 
-          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
-            <MetricCard label="Final X" value={`${fmt(last.x)} m`} />
-            <MetricCard label="Final Y" value={`${fmt(last.y)} m`} />
-            <MetricCard label="Final θ" value={`${fmt(last.theta)} rad`} />
-            <MetricCard label="Simulation time" value={`${fmt(active.tTotal, 2)} s`} />
+          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            <MetricCard label="Final position" value={`(${fmt(last.x)}, ${fmt(last.y)}) m`} />
+            <MetricCard label="Final heading θ" value={`${fmt(last.theta)} rad`} />
+            <MetricCard
+              label="Distance to target"
+              value={`${fmt(nav.finalDistance)} m`}
+              hint={`tolerance = ${active.tolerance} m`}
+            />
+            <MetricCard label="Minimum distance" value={`${fmt(nav.minDistance)} m`} />
+            <MetricCard
+              label="Target reached"
+              value={nav.targetReached ? "Yes" : "No"}
+              hint={nav.reachedAtTime !== null ? `at t = ${fmt(nav.reachedAtTime, 2)} s` : `within T = ${active.tTotal} s`}
+            />
+            <MetricCard label="Target position" value={`(${fmt(active.targetX)}, ${fmt(active.targetY)}) m`} />
+            <MetricCard label="Start position" value={`(${fmt(active.x0)}, ${fmt(active.y0)}) m`} />
             <MetricCard label="Time steps" value={rows.length - 1} hint={`h = ${active.h}`} />
           </div>
 
@@ -184,6 +193,8 @@ function SimulationPage() {
                     <th className="px-4 py-2.5 font-medium">X (m)</th>
                     <th className="px-4 py-2.5 font-medium">Y (m)</th>
                     <th className="px-4 py-2.5 font-medium">θ (rad)</th>
+                    <th className="px-4 py-2.5 font-medium">ω (rad/s)</th>
+                    <th className="px-4 py-2.5 font-medium">Distance (m)</th>
                   </tr>
                 </thead>
                 <tbody className="formula">
@@ -203,6 +214,8 @@ function SimulationPage() {
                         <td className="px-4 py-2">{r.x.toFixed(6)}</td>
                         <td className="px-4 py-2">{r.y.toFixed(6)}</td>
                         <td className="px-4 py-2">{r.theta.toFixed(6)}</td>
+                        <td className="px-4 py-2">{r.omega.toFixed(6)}</td>
+                        <td className="px-4 py-2">{r.distance.toFixed(6)}</td>
                       </tr>
                     );
                   })}
@@ -210,6 +223,7 @@ function SimulationPage() {
               </table>
             </div>
           </Panel>
+
         </div>
       </div>
     </div>
