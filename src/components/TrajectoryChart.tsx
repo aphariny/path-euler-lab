@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Customized,
@@ -21,6 +21,10 @@ interface Props {
   showExact?: boolean;
   target?: { x: number; y: number } | null;
 }
+
+const CustomLayer = Customized as unknown as React.FC<{
+  component: (p: OverlayProps) => React.ReactElement | null;
+}>;
 
 /** Number of heading arrows drawn along the path. */
 const ARROW_COUNT = 14;
@@ -263,12 +267,10 @@ export function TrajectoryChart({ numeric, exact, showExact = false, target = nu
                 label={{ value: "target", fontSize: 10, position: "top" }}
               />
             ) : null}
-            <Customized
-              {...({
-                component: (p: OverlayProps) => (
-                  <HeadingOverlay {...p} rows={numeric} arrowIdx={arrowIdx} robotIdx={robotIdx} />
-                ),
-              } as never)}
+            <CustomLayer
+              component={(p: OverlayProps) => (
+                <HeadingOverlay {...p} rows={numeric} arrowIdx={arrowIdx} robotIdx={robotIdx} />
+              )}
             />
 
           </LineChart>
