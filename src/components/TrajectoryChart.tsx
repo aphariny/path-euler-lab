@@ -264,10 +264,13 @@ export function TrajectoryChart({ numeric, exact, showExact = false, target = nu
               />
             ) : null}
             <Customized
-              component={(p: OverlayProps) => (
-                <HeadingOverlay {...p} rows={numeric} arrowIdx={arrowIdx} robotIdx={robotIdx} />
-              )}
+              {...({
+                component: (p: OverlayProps) => (
+                  <HeadingOverlay {...p} rows={numeric} arrowIdx={arrowIdx} robotIdx={robotIdx} />
+                ),
+              } as never)}
             />
+
           </LineChart>
         </ResponsiveContainer>
       </div>
