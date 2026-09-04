@@ -72,12 +72,8 @@ function HeadingOverlay(props: OverlayProps) {
       {arrows}
       <g transform={`translate(${rx}, ${ry}) rotate(${rdeg})`}>
         <circle r={11} fill="var(--color-chart-1)" opacity={0.14} />
-        <polygon
-          points="13,0 -7,-8 -3.5,0 -7,8"
-          fill="var(--color-chart-1)"
-          stroke="var(--color-card)"
-          strokeWidth={1.2}
-        />
+        <line x1={-12} y1={0} x2={4} y2={0} stroke="var(--color-chart-1)" strokeWidth={2.4} />
+        <polygon points="15,0 2,-7 2,7" fill="var(--color-chart-1)" />
       </g>
     </g>
   );
